@@ -1,40 +1,47 @@
-// Listen for tab updates to monitor URL changes
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-	if (changeInfo.status === "complete" && tab.url) {
-		checkAndRedirect(tab);
+// Listen for messages to toggle the extension's state
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+	if (request.action === "toggle") {
+		// Toggle the pause state
+		chrome.storage.local.get(["isPaused"], (result) => {
+			const isPaused = result.isPaused !== undefined ? result.isPaused : false;
+			const newPausedState = !isPaused;
+
+			// Update the pause state in storage
+			chrome.storage.local.set({ isPaused: newPausedState }, () => {
+				// Notify content script of the new state
+				chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+					if (tabs[0]) {
+						chrome.tabs.sendMessage(tabs[0].id, {
+							action: "toggle",
+							isPaused: newPausedState
+						});
+					}
+				});
+			});
+		});
 	}
 });
 
-const checkAndRedirect = (tab) => {
-	const isPaused = JSON.parse(localStorage.getItem("extensionPaused")) || false;
+// Check and redirect function to monitor and redirect Facebook watch/reel pages
+const checkAndRedirect = (tabId, url) => {
+	chrome.storage.local.get(["isPaused"], (result) => {
+		const isPaused = result.isPaused || false;
 
-	// If paused and on watch/reel pages, do nothing
-	if (
-		isPaused &&
-		(tab.url.includes("https://www.facebook.com/watch") ||
-			tab.url.includes("https://www.facebook.com/reel"))
-	) {
-		return;
-	}
-
-	// If not paused and on watch/reel pages, redirect to home
-	if (
-		!isPaused &&
-		(tab.url.includes("facebook.com/watch") ||
-			tab.url.includes("facebook.com/reel"))
-	) {
-		chrome.tabs.update(tab.id, { url: "https://www.facebook.com" });
-	}
+		// Redirect only if not paused and on a Facebook watch/reel page
+		if (
+			!isPaused &&
+			(url.includes("facebook.com/watch") || url.includes("facebook.com/reel"))
+		) {
+			chrome.tabs.update(tabId, { url: "https://www.facebook.com" });
+		}
+	});
 };
 
-// Listen for messages from popup to toggle pause/resume
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-	if (message.action === "togglePause") {
-		const isPaused =
-			JSON.parse(localStorage.getItem("extensionPaused")) || false;
-		const newPausedState = !isPaused;
-		localStorage.setItem("extensionPaused", JSON.stringify(newPausedState));
-		sendResponse({ paused: newPausedState });
+// Monitor active tab updates to apply redirection
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+	if (changeInfo.url) {
+		// Check and potentially redirect when URL changes
+		checkAndRedirect(tabId, changeInfo.url);
 	}
 });
 

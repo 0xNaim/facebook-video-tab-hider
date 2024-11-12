@@ -1,17 +1,28 @@
-const toggleButton = document.getElementById("toggleButton");
+document.addEventListener("DOMContentLoaded", () => {
+	const toggleButton = document.getElementById("toggleButton");
 
-let isPaused = JSON.parse(localStorage.getItem("extensionPaused")) || false;
+	// Initial state setup
+	chrome.storage.local.get(["isPaused"], (result) => {
+		const isPaused = result.isPaused || false;
+		toggleButton.textContent = isPaused ? "Resume" : "Pause";
+	});
 
-toggleButton.textContent = isPaused ? "Resume" : "Pause";
+	// Click event listener
+	toggleButton.addEventListener("click", () => {
+		chrome.storage.local.get(["isPaused"], (result) => {
+			const isPaused = result.isPaused || false;
+			const newIsPaused = !isPaused;
 
-toggleButton.addEventListener("click", () => {
-	isPaused = !isPaused;
+			// Update storage and then update button text and send message
+			chrome.storage.local.set({ isPaused: newIsPaused }, () => {
+				toggleButton.textContent = newIsPaused ? "Resume" : "Pause";
 
-	localStorage.setItem("extensionPaused", JSON.stringify(isPaused));
-
-	toggleButton.textContent = isPaused ? "Resume" : "Pause";
-
-	chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-		chrome.tabs.sendMessage(tabs[0].id, { action: "togglePauseResume" });
+				// Send message to background script about the updated state
+				chrome.runtime.sendMessage({
+					action: "toggle",
+					isPaused: newIsPaused
+				});
+			});
+		});
 	});
 });
