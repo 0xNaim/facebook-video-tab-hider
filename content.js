@@ -10,6 +10,7 @@ const toggleElements = (isPaused) => {
 
 // Redirect if on watch/reel pages and not paused
 const checkAndRedirect = (isPaused) => {
+	// Check if page is Facebook Watch/Reel and not paused
 	if (
 		isPaused ||
 		(!window.location.href.includes("facebook.com/watch") &&
@@ -17,6 +18,7 @@ const checkAndRedirect = (isPaused) => {
 	)
 		return;
 
+	// Redirect to main Facebook page
 	window.location.href = "https://www.facebook.com";
 };
 
@@ -46,17 +48,22 @@ const init = () => {
 	chrome.storage.local.get(["isPaused"], (result) => {
 		const isPaused = result.isPaused || false;
 
+		// Apply the initial state to the page
 		checkAndRedirect(isPaused);
 		toggleElements(isPaused);
 
 		// Observe DOM changes to continuously apply checks with the latest isPaused state
 		const observer = new MutationObserver(() => {
-			chrome.storage.local.get(["isPaused"], (result) => {
-				const currentPausedState = result.isPaused || false;
-				checkAndRedirect(currentPausedState);
-				toggleElements(currentPausedState);
-			});
+			// Ensure the context is still valid before trying to interact with the DOM
+			if (document.body) {
+				chrome.storage.local.get(["isPaused"], (result) => {
+					const currentPausedState = result.isPaused || false;
+					checkAndRedirect(currentPausedState);
+					toggleElements(currentPausedState);
+				});
+			}
 		});
+
 		observer.observe(document.body, { childList: true, subtree: true });
 	});
 };
